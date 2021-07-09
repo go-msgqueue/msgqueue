@@ -4,11 +4,9 @@ import (
 	"context"
 	"log"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/go-redis/redis/v8"
-	"github.com/hashicorp/golang-lru/simplelru"
 	"github.com/vmihailenco/taskq/v3/internal"
 )
 
@@ -40,60 +38,4 @@ type Redis interface {
 	EvalSha(ctx context.Context, sha1 string, keys []string, args ...interface{}) *redis.Cmd
 	ScriptExists(ctx context.Context, scripts ...string) *redis.BoolSliceCmd
 	ScriptLoad(ctx context.Context, script string) *redis.StringCmd
-}
-
-type Storage interface {
-	Exists(ctx context.Context, key string) bool
-}
-
-type redisStorage struct {
-	redis Redis
-}
-
-var _ Storage = (*redisStorage)(nil)
-
-func newRedisStorage(redis Redis) redisStorage {
-	return redisStorage{
-		redis: redis,
-	}
-}
-
-func (s redisStorage) Exists(ctx context.Context, key string) bool {
-	if localCacheExists(key) {
-		return true
-	}
-
-	val, err := s.redis.SetNX(ctx, key, "", 24*time.Hour).Result()
-	if err != nil {
-		return true
-	}
-	return !val
-}
-
-//------------------------------------------------------------------------------
-
-var (
-	mu    sync.Mutex
-	cache *simplelru.LRU
-)
-
-func localCacheExists(key string) bool {
-	mu.Lock()
-	defer mu.Unlock()
-
-	if cache == nil {
-		var err error
-		cache, err = simplelru.NewLRU(128000, nil)
-		if err != nil {
-			panic(err)
-		}
-	}
-
-	_, ok := cache.Get(key)
-	if ok {
-		return true
-	}
-
-	cache.Add(key, nil)
-	return false
 }

@@ -108,7 +108,11 @@ func (opt *QueueOptions) Init() {
 	}
 
 	if opt.Storage == nil {
-		opt.Storage = newRedisStorage(opt.Redis)
+		if opt.Redis != nil {
+			opt.Storage = newRedisStorage(opt.Redis)
+		} else {
+			opt.Storage = localStorage{}
+		}
 	}
 
 	if !opt.RateLimit.IsZero() && opt.RateLimiter == nil && opt.Redis != nil {
